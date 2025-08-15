@@ -1,0 +1,23 @@
+# 10_bronze_batch_dims
+from pyspark.sql import functions as F
+
+catalog, schema, volume = "retail", "core", "retail_vol"
+base = f"/Volumes/{catalog}/{schema}/{volume}"
+spark.sql(f"USE CATALOG {catalog}")
+spark.sql(f"USE {schema}")
+
+def ingest_csv_to_delta(src, tbl):
+    df = (spark.read.option("header", True).csv(src)
+          .withColumn("_ingest_ts", F.current_timestamp()))
+    (df.write
+        .mode("overwrite")
+        .format("delta")
+        .option("overwriteSchema", "true")
+        .saveAsTable(tbl))
+    return tbl
+
+ingest_csv_to_delta(f"{base}/raw/customers", "bronze_customers")
+ingest_csv_to_delta(f"{base}/raw/products",  "bronze_products")
+ingest_csv_to_delta(f"{base}/raw/stores",    "bronze_stores")
+
+display(spark.sql("SHOW TABLES"))
