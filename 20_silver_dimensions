@@ -1,5 +1,6 @@
 # 20_silver_dimensions
 from pyspark.sql import functions as F
+from pyspark.sql import Window
 
 spark.sql("USE CATALOG retail")
 spark.sql("USE core")
