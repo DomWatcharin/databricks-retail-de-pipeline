@@ -1,0 +1,11 @@
+# 00_config
+catalog = "retail"
+schema  = "core"
+volume  = "retail_vol"
+base    = f"/Volumes/{catalog}/{schema}/{volume}"
+
+spark.sql(f"USE CATALOG {catalog}")
+spark.sql(f"USE {schema}")
+
+display(spark.sql("SELECT current_catalog(), current_schema()"))
+print("BASE:", base)
