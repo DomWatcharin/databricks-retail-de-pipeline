@@ -1,0 +1,32 @@
+# 30_gold_marts
+from pyspark.sql import functions as F
+
+spark.sql("USE CATALOG retail")
+spark.sql("USE core")
+
+fs = spark.table("fact_sales").withColumn("event_date", F.to_date("event_ts"))
+
+# 1) Daily sales by store & product
+daily = (fs.groupBy("event_date", "store_id", "store_name", "product_id", "sku", "name")
+           .agg(F.sum("quantity").alias("qty"),
+                F.sum("sales_amount").alias("revenue")))
+
+daily.write.mode("overwrite").format("delta").saveAsTable("gm_daily_store_product_sales")
+
+# 2) Customer 360 (simple): total orders, revenue, last_seen
+cust360 = (fs.groupBy("customer_id","first_name","last_name","email")
+             .agg(F.countDistinct("event_id").alias("orders"),
+                  F.sum("sales_amount").alias("lifetime_value"),
+                  F.max("event_ts").alias("last_seen")))
+
+cust360.write.mode("overwrite").format("delta").saveAsTable("gm_customer_360")
+
+# 3) Top products (last 7 days)
+from datetime import datetime, timedelta
+last7 = fs.filter(F.col("event_ts") >= F.date_sub(F.current_date(), 7))
+
+top7 = (last7.groupBy("product_id","sku","name")
+       .agg(F.sum("quantity").alias("qty_7d"), F.sum("sales_amount").alias("rev_7d"))
+       .orderBy(F.desc("rev_7d")))
+
+top7.write.mode("overwrite").format("delta").saveAsTable("gm_top_products_7d")
