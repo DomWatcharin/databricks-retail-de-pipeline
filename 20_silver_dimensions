@@ -1,0 +1,22 @@
+# 20_silver_dimensions
+from pyspark.sql import functions as F
+
+spark.sql("USE CATALOG retail")
+spark.sql("USE core")
+
+# Customers (dedupe by customer_id, most recent ingest)
+cust = (spark.table("bronze_customers")
+    .withColumn("rn", F.row_number().over(
+        Window.partitionBy("customer_id").orderBy(F.col("_ingest_ts").desc())
+    ))
+    .filter("rn=1").drop("rn", "_ingest_ts"))
+
+cust.write.mode("overwrite").format("delta").saveAsTable("dim_customer")
+
+# Stores
+stores = (spark.table("bronze_stores")
+    .drop("_ingest_ts").dropDuplicates(["store_id"]))
+
+stores.write.mode("overwrite").format("delta").saveAsTable("dim_store")
+
+display(spark.sql("SHOW TABLES"))
