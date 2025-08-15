@@ -16,11 +16,11 @@ It is **fully compatible with serverless Databricks workspaces**, meaning it doe
 | `01_generate_sample_data` | Data Gen | Generates synthetic raw data for demo |
 | `10_bronze_batch_dims` | Bronze | Batch load of dimension CSVs (customers, products, stores) |
 | `11_bronze_stream_sales_autoloader` | Bronze | Streaming ingest of POS sales data via Auto Loader |
-| `20_silver_dimensions` | Silver | Clean + deduplicate customer & store dims (✅ includes `Window` import fix) |
-| `21_silver_products_scd2` | Silver | Maintain product dimension as SCD Type 2 (✅ fixed MERGE) |
+| `20_silver_dimensions` | Silver | Clean + deduplicate customer & store dims |
+| `21_silver_products_scd2` | Silver | Maintain product dimension as SCD Type 2 |
 | `22_silver_fact_sales` | Silver | Build sales fact table |
 | `30_gold_marts` | Gold | Build gold-layer BI marts |
-| `40_quality_checks` | Gold | Simple data quality assertions (✅ improved with table existence checks) |
+| `40_quality_checks` | Gold | Simple data quality assertions |
 
 ---
 
