@@ -1,0 +1,60 @@
+# 01_generate_sample_data
+from pyspark.sql import functions as F, types as T
+import random, uuid
+from datetime import datetime, timedelta
+
+catalog, schema, volume = "retail", "core", "retail_vol"
+base = f"/Volumes/{catalog}/{schema}/{volume}"
+
+# Customers
+cust = (spark.range(1, 5001)
+    .withColumn("customer_id", F.col("id").cast("int"))
+    .withColumn("first_name", F.concat(F.lit("Name"), F.col("id")))
+    .withColumn("last_name",  F.concat(F.lit("Surname"), F.col("id")))
+    .withColumn("email",      F.concat(F.lit("user"), F.col("id"), F.lit("@example.com")))
+    .select("customer_id", "first_name", "last_name", "email"))
+
+cust.write.mode("overwrite").option("header", True).csv(f"{base}/raw/customers")
+
+# Products with price history seeds
+prod = (spark.range(1, 2001)
+    .withColumn("product_id", F.col("id").cast("int"))
+    .withColumn("sku",        F.concat(F.lit("SKU-"), F.lpad(F.col("id").cast("string"), 6, "0")))
+    .withColumn("name",       F.concat(F.lit("Product "), F.col("id")))
+    .withColumn("category",   F.expr("CASE WHEN id%5=0 THEN 'Home' WHEN id%5=1 THEN 'Electronics' WHEN id%5=2 THEN 'Grocery' WHEN id%5=3 THEN 'Beauty' ELSE 'Sports' END"))
+    .withColumn("price",      (F.rand()*90 + 10).cast("decimal(10,2)"))
+    .select("product_id","sku","name","category","price"))
+
+prod.write.mode("overwrite").option("header", True).csv(f"{base}/raw/products")
+
+# Stores
+stores = (spark.range(1, 51)
+    .withColumn("store_id", F.col("id").cast("int"))
+    .withColumn("store_name", F.concat(F.lit("Store "), F.col("id")))
+    .withColumn("city", F.expr("CASE WHEN id%4=0 THEN 'Bangkok' WHEN id%4=1 THEN 'Chiang Mai' WHEN id%4=2 THEN 'Khon Kaen' ELSE 'Phuket' END"))
+    .select("store_id","store_name","city"))
+
+stores.write.mode("overwrite").option("header", True).csv(f"{base}/raw/stores")
+
+# POS sales events as JSON files partitioned by date (simulate incremental)
+rows = []
+start = datetime.now() - timedelta(days=7)
+for d in range(7):
+    day = (start + timedelta(days=d)).date().isoformat()
+    for _ in range(20000):  # ~20k events/day
+        rows.append({
+            "event_id": str(uuid.uuid4()),
+            "event_ts": (datetime.now() - timedelta(days=(6-d), seconds=random.randint(0,86400))).isoformat(),
+            "store_id": random.randint(1,50),
+            "customer_id": random.randint(1,5000),
+            "product_id": random.randint(1,2000),
+            "quantity": random.randint(1,5),
+            "unit_price": round(random.uniform(10,100),2),
+            "payment_type": random.choice(["cash","card","e-wallet"])
+        })
+    df = spark.createDataFrame(rows)
+    (df.write.mode("overwrite")
+        .json(f"{base}/raw/pos_sales/dt={day}"))
+    rows.clear()
+
+print("Sample data generated under", base)
