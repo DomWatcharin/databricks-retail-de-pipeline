@@ -1,0 +1,34 @@
+# 11_bronze_stream_sales_autoloader
+from pyspark.sql.types import *
+from pyspark.sql import functions as F
+
+catalog, schema, volume = "retail", "core", "retail_vol"
+base = f"/Volumes/{catalog}/{schema}/{volume}"
+spark.sql(f"USE CATALOG {catalog}")
+spark.sql(f"USE {schema}")
+
+sales_schema = StructType([
+    StructField("event_id", StringType()),
+    StructField("event_ts", StringType()),
+    StructField("store_id", IntegerType()),
+    StructField("customer_id", IntegerType()),
+    StructField("product_id", IntegerType()),
+    StructField("quantity", IntegerType()),
+    StructField("unit_price", DoubleType()),
+    StructField("payment_type", StringType()),
+])
+
+stream = (spark.readStream
+  .format("cloudFiles")
+  .option("cloudFiles.format","json")
+  .option("cloudFiles.schemaLocation", f"{base}/_schemas/pos_sales")
+  .schema(sales_schema)  # provide schema for performance
+  .load(f"{base}/raw/pos_sales")
+  .withColumn("_ingest_ts", F.current_timestamp())
+)
+
+# Backfill once; switch to .trigger(processingTime="1 minute") for continuous
+(stream.writeStream
+  .option("checkpointLocation", f"{base}/_checkpoints/bronze/pos_sales")
+  .trigger(availableNow=True)
+  .toTable("bronze_pos_sales"))
