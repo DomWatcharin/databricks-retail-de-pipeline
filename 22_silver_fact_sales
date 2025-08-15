@@ -1,0 +1,38 @@
+# 22_silver_fact_sales
+from pyspark.sql import functions as F
+
+spark.sql("USE CATALOG retail")
+spark.sql("USE core")
+
+bronze_sales = (spark.table("bronze_pos_sales")
+    .withColumn("event_ts", F.to_timestamp("event_ts"))
+    .filter("event_ts IS NOT NULL")
+    .filter("quantity > 0 AND unit_price > 0")  # basic QC
+    .withColumn("sales_amount", F.col("quantity") * F.col("unit_price"))
+)
+
+# Join dims
+dim_store = spark.table("dim_store").select("store_id","store_name","city")
+dim_cust  = spark.table("dim_customer").select("customer_id","first_name","last_name","email")
+dim_prod  = spark.table("dim_product").where("is_current = TRUE") \
+             .select("product_id","sku","name","category","price")
+
+fact = (bronze_sales.alias("s")
+    .join(dim_store.alias("st"), "store_id")
+    .join(dim_cust.alias("c"),  "customer_id")
+    .join(dim_prod.alias("p"),  "product_id")
+    .select(
+        F.col("s.event_id"), F.col("s.event_ts"),
+        "s.store_id","st.store_name","st.city",
+        "s.customer_id","c.first_name","c.last_name","c.email",
+        "s.product_id","p.sku","p.name","p.category",
+        "s.quantity","s.unit_price","s.sales_amount"
+    )
+)
+
+(fact.write
+  .mode("overwrite")
+  .format("delta")
+  .saveAsTable("fact_sales"))
+
+display(spark.table("fact_sales").limit(10))
